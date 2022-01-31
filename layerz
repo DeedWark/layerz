@@ -49,7 +49,7 @@ remote_layer() {
 	fi
 
 	while read -r layer; do
-		echo -e "LAYER:${_TABS}$(awk '{$2=$2};1' <<<$layer)"
+		echo -e "LAYER:${_TABS}$(awk '{$2=$2};1' <<<"$layer")"
 	done < <($(which skopeo) inspect --config "${_IMG}" | jq -r ".history[].created_by")
 }
 
