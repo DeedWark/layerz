@@ -1,0 +1,107 @@
+#!/bin/bash
+# Description: Get container image's layers from Docker / Podman / Remote registry
+# Date: 31/01/2022
+# Author: DeedWark <github.com/DeedWark>
+# Version: 1.0
+
+_TABS=
+_IMAGE=
+
+error() {
+	RED='\033[1;31m'
+	END='\033[0m'
+	echo -e "${RED}$*${END}" >&2
+	exit 1
+}
+
+check_pkg() { # $1
+	if ! which "$1" >/dev/null 2>&1; then
+		error "$1 is not installed!"
+	fi
+}
+
+if which tabs >/dev/null 2>&1; then
+	_TABS=$(tabs 4)
+else
+	_TABS="\t"
+fi
+
+docker_layer() {
+	check_pkg docker
+	D_LAYERS=$($(which docker) history "${_IMAGE}" --no-trunc --format '{{.CreatedBy}}')
+	echo "${D_LAYERS}"
+}
+
+podman_layer() {
+	check_pkg podman
+	P_LAYERS=$($(which podman) history "${_IMAGE}" --no-trunc --format '{{.CreatedBy}}')
+	echo "${P_LAYERS}"
+}
+
+remote_layer() {
+	check_pkg skopeo
+	check_pkg jq
+	_RGX='docker:\/\/(.+)'
+	if [[ "${_IMAGE}" =~ ${_RGX} ]]; then
+		_IMG="${_IMAGE}"
+	else
+		_IMG="docker://${_IMAGE}"
+	fi
+
+	while read -r layer; do
+		echo -e "LAYER:${_TABS}$(awk '{$2=$2};1' <<<$layer)"
+	done < <($(which skopeo) inspect --config "${_IMG}" | jq -r ".history[].created_by")
+}
+
+show_help() {
+	echo -en "Get container image (OCI) layers
+USAGE: $0 <option> [image]
+
+Example:
+       $0 -d alpine
+       $0 -p quay.io/libpod/alpine
+       $0 -r docker.io/alpine
+
+Options:
+       -d, --docker   Get Docker image's layers (dockerhub, built from Dockerfile)
+       -p, --podman   Get Podman image's layers (quay.io ...)
+       -r, --remote   Get image's layers remotely (from a registry)
+       -h, --help     Show this help
+"
+}
+
+OPTS=$(getopt -o d:p:r:h --long docker:,podman:,remote:,help -- "$@")
+eval set -- "${OPTS}"
+
+while true; do
+	case "${1}" in
+	-d | --docker)
+		_IMAGE="$2"
+		docker_layer
+		shift
+		;;
+	-p | --podman)
+		_IMAGE="$2"
+		podman_layer
+		shift
+		;;
+	-r | --remote)
+		_IMAGE="$2"
+		remote_layer
+		shift
+		;;
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		show_help
+		exit 0
+		;;
+	esac
+	shift
+done
