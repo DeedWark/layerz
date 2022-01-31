@@ -57,7 +57,7 @@ show_help() {
 	echo -en "Get container image (OCI) layers
 USAGE: $0 <option> [image]
 
-Example:
+Examples:
        $0 -d alpine
        $0 -p quay.io/libpod/alpine
        $0 -r docker.io/alpine
